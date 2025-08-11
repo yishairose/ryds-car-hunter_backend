@@ -3,12 +3,14 @@ import StagehandConfig from "./stagehand.config.js";
 import chalk from "chalk";
 import boxen from "boxen";
 import * as dotenv from "dotenv";
+import * as fs from "fs";
 import { disposalnetworkConfig } from "./src/sites/disposalnetwork.js";
 import { bcaConfig } from "./src/sites/bca.js";
 import { motorwayConfig } from "./src/sites/motorway.js";
 import { carwowConfig } from "./src/sites/carwow.js";
 import { cartotradeConfig } from "./src/sites/cartotrade.js";
 import type { SearchParams, LoginCredentials } from "./src/types/index.ts";
+import { chromium } from "@playwright/test";
 
 export type { SearchParams, LoginCredentials };
 
@@ -90,9 +92,9 @@ export async function scrapeAllSites(
 
   // Define site configurations with login functionality
   const siteConfigs: Record<string, SiteConfig> = {
-    // bca: bcaConfig(stagehand),
+    bca: bcaConfig(stagehand),
     // CarToTrade: cartotradeConfig(stagehand),
-    // motorway: motorwayConfig(stagehand),
+    motorway: motorwayConfig(stagehand),
     // carwow: carwowConfig(stagehand),
     // disposalnetwork: disposalnetworkConfig(stagehand),
   } as const;
@@ -134,7 +136,9 @@ export async function scrapeAllSites(
       if (!credentials.username || !credentials.password) {
         throw new Error(`Missing username or password for ${siteConfig.name}`);
       }
+
       await siteConfig.login(newPage, credentials);
+
       await newPage.waitForLoadState("domcontentloaded");
       await newPage.waitForTimeout(5_000);
       console.log(

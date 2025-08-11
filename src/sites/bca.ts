@@ -4,6 +4,7 @@ import type {
   SearchParams,
   LoginCredentials,
 } from "../../index.ts";
+import { modelGroupMap } from "./bca/model-groups.js";
 
 export function bcaConfig(stagehand: any): SiteConfig {
   return {
@@ -12,31 +13,6 @@ export function bcaConfig(stagehand: any): SiteConfig {
     loginUrl:
       "https://login.bca.co.uk/login?signin=7d12c2d8683d1121f324c3ef7e44b042",
     buildSearchUrl: (params: SearchParams) => {
-      const modelGroupMap: Record<string, Record<string, string>> = {
-        FORD: {
-          Focus: "Focus Range",
-          Fiesta: "Fiesta Range",
-          Edge: "Edge Range",
-          // ...
-        },
-        BMW: {
-          "3 Series": "3 Series",
-          "5 Series": "5 Series",
-          // ...
-        },
-        MERCEDES: {
-          AMG: "AMG Line",
-          // ...
-        },
-        // Add more as needed
-        AUDI: {
-          A3: "A3 Line",
-        },
-        HONDA: {
-          CIVIC: "Civic Range",
-        },
-      };
-
       const modelGroup =
         modelGroupMap[params.make.toUpperCase()]?.[params.model] ||
         params.model;
