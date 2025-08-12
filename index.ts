@@ -78,7 +78,13 @@ async function runInBatches<T>(
 
 // Exported function to scrape all sites, callable from an API
 export async function scrapeAllSites(
-  customParams?: Partial<SearchParams>
+  customParams?: Partial<SearchParams>,
+  onProgress?: (
+    siteName: string,
+    cars: any[],
+    totalSites: number,
+    currentSite: number
+  ) => void
 ): Promise<any[]> {
   const stagehand = new Stagehand({
     ...StagehandConfig,
@@ -93,10 +99,10 @@ export async function scrapeAllSites(
   // Define site configurations with login functionality
   const siteConfigs: Record<string, SiteConfig> = {
     bca: bcaConfig(stagehand),
-    // CarToTrade: cartotradeConfig(stagehand),
+    CarToTrade: cartotradeConfig(stagehand),
     motorway: motorwayConfig(stagehand),
-    // carwow: carwowConfig(stagehand),
-    // disposalnetwork: disposalnetworkConfig(stagehand),
+    carwow: carwowConfig(stagehand),
+    disposalnetwork: disposalnetworkConfig(stagehand),
   } as const;
 
   // Define login credentials for each site
@@ -115,7 +121,7 @@ export async function scrapeAllSites(
     },
     CarToTrade: {
       username: process.env.CARTOTRADE_USERNAME || "",
-      password: process.env.CARTOTRADE_PASSWORD || "",
+      password: process.env.CARWOW_PASSWORD || "",
     },
     disposalnetwork: {
       username: process.env.DISPOSALNETWORK_USERNAME || "",
@@ -124,6 +130,8 @@ export async function scrapeAllSites(
   };
 
   const allCarData: any[] = [];
+  const totalSites = Object.keys(siteConfigs).length;
+  let currentSiteIndex = 0;
 
   async function processSite(siteConfig: SiteConfig) {
     const newPage = await context.newPage();
@@ -176,12 +184,25 @@ export async function scrapeAllSites(
           extractedData?.length || 0,
           "cars"
         );
+
+        // Emit progress if callback is provided
+        if (onProgress && extractedData) {
+          onProgress(
+            siteConfig.name,
+            extractedData,
+            totalSites,
+            currentSiteIndex + 1
+          );
+        }
       } else {
         // No extraction if no custom extractCars
         extractedData = null;
       }
+
+      currentSiteIndex++;
       return extractedData;
     } catch (error) {
+      currentSiteIndex++;
       return null;
     } finally {
       await newPage.close();

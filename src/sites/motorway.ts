@@ -4,6 +4,7 @@ import type {
   SearchParams,
   LoginCredentials,
 } from "../../index.ts";
+import { getMotorwayModelName } from "./motorway/model-groups.js";
 
 export function motorwayConfig(stagehand: any): SiteConfig {
   return {
@@ -12,7 +13,7 @@ export function motorwayConfig(stagehand: any): SiteConfig {
     loginUrl: "https://pro.motorway.co.uk/signin",
     buildSearchUrl: (params: SearchParams) => {
       console.log("===Build search url===");
-      
+
       if (!params.make) {
         throw new Error("Make is required but was undefined");
       }
@@ -23,8 +24,36 @@ export function motorwayConfig(stagehand: any): SiteConfig {
       const searchParams = new URLSearchParams();
       const makeLowerCase = params.make.toLowerCase();
       searchParams.set("make", makeLowerCase);
-      const modelUpperCase = params.model.toUpperCase();
-      searchParams.set("model", modelUpperCase);
+
+      // Use the Motorway model mapping to get the correct model name(s)
+      const motorwayModelName = getMotorwayModelName(params.make, params.model);
+      console.log(
+        `Motorway model mapping: "${params.model}" -> "${motorwayModelName}"`
+      );
+
+      // Handle both string and array model names
+      if (Array.isArray(motorwayModelName)) {
+        // For array models (like Lexus IS), we need to create multiple make/model pairs
+        // Motorway expects: make=lexus&model=RX200&make=lexus&model=RX300&make=lexus&model=RX350...
+        const makeLowerCase = params.make.toLowerCase();
+
+        // Clear the existing searchParams and rebuild with multiple make/model pairs
+        searchParams.delete("make");
+        searchParams.delete("model");
+
+        motorwayModelName.forEach((model) => {
+          searchParams.append("make", makeLowerCase);
+          searchParams.append("model", model);
+        });
+
+        console.log(
+          `Multiple models for search: ${motorwayModelName.join(", ")}`
+        );
+        console.log(`Search params structure: ${searchParams.toString()}`);
+      } else {
+        // For single model names
+        searchParams.set("model", motorwayModelName);
+      }
 
       if (params.minPrice !== undefined) {
         searchParams.set("displayPriceFrom", params.minPrice.toString());
@@ -45,11 +74,24 @@ export function motorwayConfig(stagehand: any): SiteConfig {
         searchParams.set("ageTo", params.maxAge.toString());
       }
 
+      const finalUrl = `https://pro.motorway.co.uk/vehicles?${searchParams.toString()}`;
+      console.log("Motorway final URL:", finalUrl);
       console.log(
-        "Motorway final URL:",
-        `https://pro.motorway.co.uk/vehicles?${searchParams.toString()}`
+        "Search parameters:",
+        Object.fromEntries(searchParams.entries())
       );
-      return `https://pro.motorway.co.uk/vehicles?${searchParams.toString()}`;
+
+      // For debugging: show the actual parameter structure
+      if (Array.isArray(motorwayModelName)) {
+        console.log("Multiple model search structure:");
+        motorwayModelName.forEach((model, index) => {
+          console.log(
+            `  make[${index}]: ${params.make.toLowerCase()}, model[${index}]: ${model}`
+          );
+        });
+      }
+
+      return finalUrl;
     },
     shouldNavigateToSearchUrl: true,
     login: async (page: any, credentials: LoginCredentials) => {
