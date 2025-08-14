@@ -24,17 +24,25 @@ const StagehandConfig: ConstructorParams = {
     browserSettings: {
       blockAds: true,
       viewport: {
-        width: 1920,
-        height: 1080,
+        width: 1024,
+        height: 768,
       },
     },
   },
   localBrowserLaunchOptions: {
-    // headless: true,
+    headless: true,
     viewport: {
       width: 1024,
       height: 768,
     },
+    args: [
+      "--no-sandbox",
+      "--disable-blink-features=AutomationControlled",
+      "--disable-dev-shm-usage",
+      "--disable-web-security",
+      "--disable-features=VizDisplayCompositor",
+      "--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    ],
   } /* Configuration options for the local browser */,
 };
 

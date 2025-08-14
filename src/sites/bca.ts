@@ -13,12 +13,19 @@ export function bcaConfig(stagehand: any): SiteConfig {
     loginUrl:
       "https://login.bca.co.uk/login?signin=7d12c2d8683d1121f324c3ef7e44b042",
     buildSearchUrl: (params: SearchParams) => {
+      // Map Mercedes to BCA's expected format
+      const makeMapping: Record<string, string> = {
+        Mercedes: "Mercedes-Benz",
+        "Mercedes-Benz": "Mercedes-Benz",
+      };
+
+      // Get the mapped make name, fallback to original if not found
+      const mappedMake = makeMapping[params.make] || params.make;
       const modelGroup =
-        modelGroupMap[params.make.toUpperCase()]?.[params.model] ||
-        params.model;
+        modelGroupMap[mappedMake.toUpperCase()]?.[params.model] || params.model;
       const bqParts = [
         "VehicleType:Cars",
-        `Make:${params.make.toUpperCase()}`,
+        `Make:${mappedMake.toUpperCase()}`,
         // ModelGroup must match BCA's dropdown exactly, e.g., 'Focus Range', not uppercased or altered
         `ModelGroup:${modelGroup}`,
         params.color
@@ -106,17 +113,45 @@ export function bcaConfig(stagehand: any): SiteConfig {
         await page.goto(
           "https://login.bca.co.uk/login?signin=7d12c2d8683d1121f324c3ef7e44b042"
         );
-        await page.waitForLoadState("networkidle");
-        await page.waitForTimeout(2_000);
+        await page.waitForLoadState("domcontentloaded");
+        await page.waitForTimeout(3_000);
         const currentUrl = page.url();
         stagehand.log({
           category: "debug",
           message: `Current URL: ${currentUrl}`,
         });
 
+        // Take screenshot after initial page load
+        try {
+          await page.screenshot({ path: "debug-bca-1-initial-page.png" });
+          stagehand.log({
+            category: "debug",
+            message: "Screenshot saved as debug-bca-1-initial-page.png",
+          });
+        } catch (error) {
+          stagehand.log({
+            category: "warn",
+            message: `Could not take screenshot: ${error}`,
+          });
+        }
+
         //Login to BCA
         await page.fill("#usernameInput", credentials.username);
         await page.waitForTimeout(1000);
+
+        // Take screenshot after filling username
+        try {
+          await page.screenshot({ path: "debug-bca-2-after-username.png" });
+          stagehand.log({
+            category: "debug",
+            message: "Screenshot saved as debug-bca-2-after-username.png",
+          });
+        } catch (error) {
+          stagehand.log({
+            category: "warn",
+            message: `Could not take screenshot: ${error}`,
+          });
+        }
 
         // Try common cookie banners
         const cookieAccept = page.locator('button:has-text("Accept")');
@@ -131,16 +166,73 @@ export function bcaConfig(stagehand: any): SiteConfig {
         }
         await page.getByRole("button", { name: "Continue" }).click();
 
+        // Take screenshot after clicking Continue
+        try {
+          await page.screenshot({ path: "debug-bca-3-after-continue.png" });
+          stagehand.log({
+            category: "debug",
+            message: "Screenshot saved as debug-bca-3-after-continue.png",
+          });
+        } catch (error) {
+          stagehand.log({
+            category: "warn",
+            message: `Could not take screenshot: ${error}`,
+          });
+        }
+
         await page.waitForLoadState("domcontentloaded");
         await page.fill(
           "#password\\ form-control__input",
           credentials.password
         );
         await page.waitForTimeout(1000);
+
+        // Take screenshot after filling password
+        try {
+          await page.screenshot({ path: "debug-bca-4-after-password.png" });
+          stagehand.log({
+            category: "debug",
+            message: "Screenshot saved as debug-bca-4-after-password.png",
+          });
+        } catch (error) {
+          stagehand.log({
+            category: "warn",
+            message: `Could not take screenshot: ${error}`,
+          });
+        }
+
         await page.click("#loginBtn");
 
-        await page.waitForLoadState("networkidle");
-        await page.waitForLoadState("domcontentloaded");
+        // Take screenshot after clicking login button
+        try {
+          await page.screenshot({ path: "debug-bca-5-after-login-click.png" });
+          stagehand.log({
+            category: "debug",
+            message: "Screenshot saved as debug-bca-5-after-login-click.png",
+          });
+        } catch (error) {
+          stagehand.log({
+            category: "warn",
+            message: `Could not take screenshot: ${error}`,
+          });
+        }
+
+        // Wait for the page to settle after login - use timeout instead of load state
+        await page.waitForTimeout(5000);
+
+        // Take final screenshot after login completion
+        try {
+          await page.screenshot({ path: "debug-bca-6-login-complete.png" });
+          stagehand.log({
+            category: "debug",
+            message: "Screenshot saved as debug-bca-6-login-complete.png",
+          });
+        } catch (error) {
+          stagehand.log({
+            category: "warn",
+            message: `Could not take screenshot: ${error}`,
+          });
+        }
 
         stagehand.log({
           category: "debug",
@@ -171,7 +263,8 @@ export function bcaConfig(stagehand: any): SiteConfig {
 
       // Navigate to the search page first
       if (currentUrl !== searchUrl) {
-        await page.goto(searchUrl, { waitUntil: "networkidle" });
+        await page.goto(searchUrl, { waitUntil: "domcontentloaded" });
+        await page.waitForTimeout(2000);
       }
 
       let allVehicles: any[] = [];
@@ -192,9 +285,9 @@ export function bcaConfig(stagehand: any): SiteConfig {
           ),
           // Trigger the page load (either reload or navigate to next page)
           currentPage === 1
-            ? page.reload({ waitUntil: "networkidle" })
+            ? page.reload({ waitUntil: "domcontentloaded" })
             : page.goto(searchUrl + `&page=${currentPage}`, {
-                waitUntil: "networkidle",
+                waitUntil: "domcontentloaded",
               }),
         ]);
 

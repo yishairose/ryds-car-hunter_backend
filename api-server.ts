@@ -9,8 +9,11 @@ app.use(bodyParser.json());
 
 // SSE endpoint for real-time car scraping
 app.post("/api/scrape-stream", async (req: Request, res: Response) => {
+  console.log("🚀 [API] SSE scraping request received");
+
   try {
     const params = req.body || {};
+    console.log("📋 [API] Request parameters:", params);
 
     // Set SSE headers
     res.writeHead(200, {
@@ -41,6 +44,10 @@ app.post("/api/scrape-stream", async (req: Request, res: Response) => {
       totalSites: number,
       currentSite: number
     ) => {
+      console.log(
+        `📊 [API] Progress from ${siteName}: ${cars.length} cars (site ${currentSite}/${totalSites})`
+      );
+
       const progressData = {
         type: "progress",
         siteName,
@@ -51,10 +58,15 @@ app.post("/api/scrape-stream", async (req: Request, res: Response) => {
       };
 
       res.write(`data: ${JSON.stringify(progressData)}\n\n`);
+      console.log(`📡 [API] Progress data sent via SSE for ${siteName}`);
     };
 
     // Start scraping with progress tracking
+    console.log("🔍 [API] Starting scraping with progress tracking...");
     const results = await scrapeAllSites(params, onProgress);
+    console.log(
+      `✅ [API] Scraping completed with ${results.length} total cars`
+    );
 
     // Send completion message
     const completionData = {
@@ -64,12 +76,15 @@ app.post("/api/scrape-stream", async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     };
 
+    console.log("📡 [API] Sending completion data via SSE");
     res.write(`data: ${JSON.stringify(completionData)}\n\n`);
     res.end();
+    console.log("🏁 [API] SSE stream completed successfully");
   } catch (err: any) {
-    console.error("Scrape error:", err);
+    console.error("❌ [API] Scrape error:", err);
 
     // Send error via SSE
+    console.log("📡 [API] Sending error data via SSE");
     const errorData = {
       type: "error",
       error: err.message,
@@ -78,6 +93,7 @@ app.post("/api/scrape-stream", async (req: Request, res: Response) => {
 
     res.write(`data: ${JSON.stringify(errorData)}\n\n`);
     res.end();
+    console.log("🏁 [API] SSE error stream completed");
   }
 });
 

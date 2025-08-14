@@ -49,9 +49,9 @@ export function cartotradeConfig(stagehand: any): SiteConfig {
 
       const make = params.make.toUpperCase();
 
-      // Find the checkbox corresponding to the make
+      // Find the checkbox corresponding to the make (using contains for partial matching)
       const checkbox = page.locator(
-        `xpath=//input[@type="hidden" and contains(@id, "capMan_name") and normalize-space(@value)="${make}"]/parent::li//input[@type="checkbox"]`
+        `xpath=//input[@type="hidden" and contains(@id, "capMan_name") and contains(@value, "${make}")]/parent::li//input[@type="checkbox"]`
       );
 
       // Click the checkbox
@@ -184,13 +184,12 @@ export function cartotradeConfig(stagehand: any): SiteConfig {
             await page.selectOption("#vehicleRangeId", { value: match.value });
             console.log(`Applied model filter: ${params.model}`);
           } else {
-            stagehand.log({
-              category: "error",
-              message: `Could not find model option for ${params.model}`,
-            });
-            throw new Error(
-              `Model "${params.model}" not available in filter options`
+            console.log(
+              `⚠️ [CartoTrade] Model "${params.model}" not available in filter options. Will return 0 results.`
             );
+            // Mark that search was not executed so extraction returns 0 results
+            (page as any)._cartotradeSearchExecuted = false;
+            return;
           }
         }
 
@@ -204,10 +203,15 @@ export function cartotradeConfig(stagehand: any): SiteConfig {
           .locator("button.btnSubmit.radius.expand", { hasText: "Search" })
           .nth(0)
           .click();
+
+        // Mark that search was executed successfully
+        (page as any)._cartotradeSearchExecuted = true;
       } else {
         console.log(
           "Skipping model filter - no model specified or model is empty"
         );
+        // Mark that no search was executed
+        (page as any)._cartotradeSearchExecuted = false;
       }
 
       const currentUrl = page.url();
@@ -221,6 +225,14 @@ export function cartotradeConfig(stagehand: any): SiteConfig {
         category: "debug",
         message: "Starting manual extraction process. Looping through cards",
       });
+
+      // Check if search was executed (model filter might have failed)
+      if ((page as any)._cartotradeSearchExecuted === false) {
+        console.log(
+          "⚠️ [CartoTrade] Search was not executed due to unavailable model. Returning 0 results gracefully."
+        );
+        return [];
+      }
 
       const cards = await page.$$(".panel");
       const carData = [];

@@ -75,9 +75,24 @@ export function disposalnetworkConfig(stagehand: any): SiteConfig {
       await page.waitForSelector('div.checkbox input[type="checkbox"]');
 
       // Use the actual search parameters
-
-      await page.check(`label:has-text("${params.make.toUpperCase()}")`);
-      await page.waitForTimeout(1000);
+      const makeLabel = await page.$(
+        `label:has-text("${params.make.toUpperCase()}")`
+      );
+      if (makeLabel) {
+        await makeLabel.check();
+        await page.waitForTimeout(1000);
+        // Mark that make filter was applied successfully
+        (page as any)._disposalnetworkMakeApplied = true;
+      } else {
+        stagehand.log({
+          category: "warn",
+          message: `Make "${params.make.toUpperCase()}" not available in filter options. Skipping this site gracefully.`,
+        });
+        // Mark that make filter was not applied
+        (page as any)._disposalnetworkMakeApplied = false;
+        // Don't throw error, just return early
+        return;
+      }
 
       stagehand.log({
         category: "debug",
@@ -95,14 +110,17 @@ export function disposalnetworkConfig(stagehand: any): SiteConfig {
       if (modelLabel) {
         await modelLabel.check();
         await page.waitForTimeout(1000);
+        // Mark that model filter was applied successfully
+        (page as any)._disposalnetworkModelApplied = true;
       } else {
         stagehand.log({
-          category: "error",
-          message: `Model \"${params.model.toUpperCase()}\" not available in filter options. Stopping process for this site.`,
+          category: "warn",
+          message: `Model \"${params.model.toUpperCase()}\" not available in filter options. Skipping this site gracefully.`,
         });
-        throw new Error(
-          `Model \"${params.model.toUpperCase()}\" not available in filter options.`
-        );
+        // Mark that model filter was not applied
+        (page as any)._disposalnetworkModelApplied = false;
+        // Don't throw error, just return early
+        return;
       }
 
       await page.waitForTimeout(1000);
@@ -169,6 +187,22 @@ export function disposalnetworkConfig(stagehand: any): SiteConfig {
         category: "debug",
         message: "Starting API extraction for Disposal Network",
       });
+
+      // Check if make filter was applied (might have failed)
+      if ((page as any)._disposalnetworkMakeApplied === false) {
+        console.log(
+          "⚠️ [DisposalNetwork] Make filter was not applied due to unavailable make. Returning 0 results gracefully."
+        );
+        return [];
+      }
+
+      // Check if model filter was applied (might have failed)
+      if ((page as any)._disposalnetworkModelApplied === false) {
+        console.log(
+          "⚠️ [DisposalNetwork] Model filter was not applied due to unavailable model. Returning 0 results gracefully."
+        );
+        return [];
+      }
 
       const lastResponse = (page as any)._lastDisposalNetworkResponse;
       if (!lastResponse) {

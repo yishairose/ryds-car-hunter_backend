@@ -4,6 +4,7 @@ import type {
   SearchParams,
   LoginCredentials,
 } from "../../index.js";
+import { modelGroupMap } from "./carwow/model-groups.js";
 
 export function carwowConfig(stagehand: any): SiteConfig {
   return {
@@ -68,7 +69,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
         await page.waitForTimeout(1000);
 
         await page.check(
-          `input[type="checkbox"][name="brand_slugs[]"][value="${params.make.toLocaleLowerCase()}"]`
+          `input[type="checkbox"][name="brand_slugs[]"][value*="${params.make.toLocaleLowerCase()}"]`
         );
 
         await page.waitForSelector('button.chip:has(span:has-text("Model"))');
@@ -78,21 +79,80 @@ export function carwowConfig(stagehand: any): SiteConfig {
         );
         await page.waitForTimeout(1000);
 
-        await page.fill(
-          'input[data-selling--filters-search-target="searchInput"][id="ranges-search"]',
-          params.model
-        );
+        // Check if this is a series model that needs special handling
+        const modelGroup =
+          modelGroupMap[params.make]?.[params.model] || params.model;
 
-        await page.waitForTimeout(1000);
+        if (modelGroup.includes(",")) {
+          // Skip the search box for series - go straight to checkbox selection
+          console.log(`Skipping search box for series model: ${params.model}`);
+          console.log(`Will select models: ${modelGroup}`);
+        } else {
+          // Use search box for individual models
+          await page.fill(
+            'input[data-selling--filters-search-target="searchInput"][id="ranges-search"]',
+            params.model
+          );
+          await page.waitForTimeout(1000);
+        }
 
-        await page.check(
-          `input[type="checkbox"][name="ranges[]"][value="${params.model.toUpperCase()}"]`
-        );
+        // Now handle the checkbox selection
+        if (modelGroup.includes(",")) {
+          // Handle multiple models (series)
+          const models = modelGroup.split(",");
+          console.log(
+            `Selecting ${models.length} models for series: ${params.model}`
+          );
 
-        await page.waitForTimeout(1000);
-        await page.click(
-          'button.chip[data-selling--filters-search-target="button"]:has-text("Model")'
-        );
+          for (const model of models) {
+            const checkbox = page
+              .locator(
+                `input[type="checkbox"][name="ranges[]"][value="${model.trim()}"]`
+              )
+              .first();
+
+            if (await checkbox.isVisible()) {
+              await checkbox.check();
+              console.log(`✅ Selected: ${model.trim()}`);
+            } else {
+              console.log(`⚠️ Checkbox not visible for: ${model.trim()}`);
+            }
+          }
+
+          console.log(
+            `✅ [Carwow] Series "${params.model}" filter applied successfully - selected ${models.length} models`
+          );
+          (page as any)._carwowModelApplied = true;
+        } else {
+          // Handle single model
+          const checkbox = page
+            .locator(
+              `input[type="checkbox"][name="ranges[]"][value="${modelGroup}"]`
+            )
+            .first();
+
+          if (await checkbox.isVisible()) {
+            await checkbox.check();
+            console.log(
+              `✅ [Carwow] Model "${params.model}" filter applied successfully`
+            );
+            (page as any)._carwowModelApplied = true;
+          } else {
+            console.log(
+              `⚠️ [Carwow] Model "${params.model}" not available in filter options. Will return 0 results.`
+            );
+            (page as any)._carwowModelApplied = false;
+            return;
+          }
+        }
+
+        // Only click the Model button again if we used the search box (individual models)
+        if (!modelGroup.includes(",")) {
+          await page.waitForTimeout(1000);
+          await page.click(
+            'button.chip[data-selling--filters-search-target="button"]:has-text("Model")'
+          );
+        }
 
         //Select Age
         await page.waitForTimeout(1000);
@@ -202,6 +262,16 @@ export function carwowConfig(stagehand: any): SiteConfig {
         category: "debug",
         message: "Starting extraction for Carwow",
       });
+
+      // Check if model filter was applied successfully
+      if ((page as any)._carwowModelApplied === false) {
+        stagehand.log({
+          category: "warn",
+          message:
+            "Search was not executed due to unavailable model. Returning 0 results gracefully.",
+        });
+        return [];
+      }
 
       const cards = await page.$$(
         'div.listings__list-item[data-listings-target="listing"]'
