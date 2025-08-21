@@ -6,34 +6,56 @@ import type {
 } from "../../index.js";
 import { modelGroupMap } from "./carwow/model-groups.js";
 
+/**
+ * Carwow Site Configuration
+ * This function returns a complete site configuration object for the Carwow car dealership website
+ * It handles authentication, filtering, and data extraction for car searches
+ */
 export function carwowConfig(stagehand: any): SiteConfig {
   return {
     name: "carwow",
     baseUrl: "https://dealers.carwow.co.uk",
     loginUrl:
       "https://auth.carwow.co.uk/u/login?state=hKFo2SB6SjR1UFZkeHBMcUhfc0h5SS15Z0p0ZktYbmxPUVV4WaFur3VuaXZlcnNhbC1sb2dpbqN0aWTZIGxITkZHM2tTM0l4RGRFQVhJSVpKWjFaQ25xM1pmNEJHo2NpZNkgSVNLd0IxcGJMSjl1UVVoRnkwdFhPYzc2aDJwdUthUlM",
+
+    /**
+     * LOGIN FUNCTION
+     * Handles user authentication to the Carwow website
+     * Navigates to login page, fills credentials, and completes the login process
+     */
     login: async (page: any, credentials: LoginCredentials) => {
       try {
+        // Navigate to the Carwow authentication page
         await page.goto(
           "https://auth.carwow.co.uk/u/login?state=hKFo2SB6SjR1UFZkeHBMcUhfc0h5SS15Z0p0ZktYbmxPUVV4WaFur3VuaXZlcnNhbC1sb2dpbqN0aWTZIGxITkZHM2tTM0l4RGRFQVhJSVpKWjFaQ25xM1pmNEJHo2NpZNkgSVNLd0IxcGJMSjl1UVVoRnkwdFhPYzc2aDJwdUthUlM"
         );
+
+        // Wait for page to fully load and stabilize
         await page.waitForLoadState("networkidle");
         await page.waitForTimeout(2_000);
+
+        // Log current URL for debugging purposes
         const currentUrl = page.url();
         stagehand.log({
           category: "debug",
           message: `Current URL: ${currentUrl}`,
         });
+
+        // Fill in username and password fields
         await page.fill("#username", credentials.username);
         await page.fill("#password", credentials.password);
+
+        // Click the continue button to proceed with login
         await page.getByRole("button", { name: "Continue" }).click();
         await page.waitForTimeout(2000);
 
+        // Log successful login completion
         stagehand.log({
           category: "debug",
           message: "Login completed successfully",
         });
       } catch (error) {
+        // Log any login errors and re-throw for handling upstream
         stagehand.log({
           category: "error",
           message: `Login error: ${
@@ -43,6 +65,12 @@ export function carwowConfig(stagehand: any): SiteConfig {
         throw error;
       }
     },
+
+    /**
+     * APPLY FILTERS FUNCTION
+     * Applies search filters to narrow down car results based on user parameters
+     * Handles make, model, age, and mileage filtering with special logic for series models
+     */
     applyFilters: async (page: any, params: SearchParams) => {
       try {
         stagehand.log({
@@ -50,45 +78,59 @@ export function carwowConfig(stagehand: any): SiteConfig {
           message: "Filtering Carwow",
         });
 
+        // Wait for page to be fully loaded before applying filters
         await page.waitForLoadState("domcontentloaded");
         await page.waitForLoadState("networkidle");
         await page.waitForTimeout(2000);
 
+        // STEP 1: Select listing type (All vehicles)
         await page.click(
           'label[for="filters-modal-desktop-listing_type__all"]'
         );
         await page.waitForTimeout(1000);
 
+        // STEP 2: Open Make filter dropdown
         await page.getByRole("button", { name: "Make" }).click();
-
         await page.waitForTimeout(1000);
+
+        // Search for the specified make in the filter
         await page.fill(
           'input[data-selling--filters-search-target="searchInput"][id="brand_slugs-search"]',
           params.make
         );
         await page.waitForTimeout(1000);
 
+        // Handle special case for Land Rover -> land-rover (URL slug conversion)
+        let makeForCheckbox = params.make.toLowerCase();
+        if (params.make.toLowerCase() === "land rover") {
+          makeForCheckbox = "land-rover";
+        }
+
+        // Select the make checkbox
         await page.check(
-          `input[type="checkbox"][name="brand_slugs[]"][value*="${params.make.toLocaleLowerCase()}"]`
+          `input[type="checkbox"][name="brand_slugs[]"][value*="${makeForCheckbox}"]`
         );
 
+        // Wait for Model filter to become available
         await page.waitForSelector('button.chip:has(span:has-text("Model"))');
 
+        // STEP 3: Open Model filter dropdown
         await page.click(
           'button.chip[data-selling--filters-search-target="button"]:has-text("Model")'
         );
         await page.waitForTimeout(1000);
 
         // Check if this is a series model that needs special handling
+        // Series models contain multiple comma-separated values (e.g., "1 Series, 2 Series, 3 Series")
         const modelGroup =
           modelGroupMap[params.make]?.[params.model] || params.model;
 
         if (modelGroup.includes(",")) {
-          // Skip the search box for series - go straight to checkbox selection
+          // SERIES MODEL HANDLING: Skip search box and go straight to checkbox selection
           console.log(`Skipping search box for series model: ${params.model}`);
           console.log(`Will select models: ${modelGroup}`);
         } else {
-          // Use search box for individual models
+          // INDIVIDUAL MODEL HANDLING: Use search box to find specific model
           await page.fill(
             'input[data-selling--filters-search-target="searchInput"][id="ranges-search"]',
             params.model
@@ -96,14 +138,15 @@ export function carwowConfig(stagehand: any): SiteConfig {
           await page.waitForTimeout(1000);
         }
 
-        // Now handle the checkbox selection
+        // STEP 4: Handle model checkbox selection
         if (modelGroup.includes(",")) {
-          // Handle multiple models (series)
+          // SERIES MODEL: Select multiple models from the series
           const models = modelGroup.split(",");
           console.log(
             `Selecting ${models.length} models for series: ${params.model}`
           );
 
+          // Iterate through each model in the series and select their checkboxes
           for (const model of models) {
             const checkbox = page
               .locator(
@@ -124,15 +167,73 @@ export function carwowConfig(stagehand: any): SiteConfig {
           );
           (page as any)._carwowModelApplied = true;
         } else {
-          // Handle single model
-          const checkbox = page
+          // INDIVIDUAL MODEL: Find and select the best matching model
+          console.log(`Looking for model: ${params.model}`);
+
+          // First, try to find an exact match
+          let exactCheckbox = page
             .locator(
               `input[type="checkbox"][name="ranges[]"][value="${modelGroup}"]`
             )
             .first();
 
-          if (await checkbox.isVisible()) {
-            await checkbox.check();
+          // If exact match not found, look for partial matches
+          if (!(await exactCheckbox.isVisible())) {
+            console.log(
+              `Exact match not found for "${modelGroup}", looking for partial matches...`
+            );
+
+            // Get all available model checkboxes to find alternatives
+            const allModelCheckboxes = await page.$$(
+              'input[type="checkbox"][name="ranges[]"]'
+            );
+            const availableModels = [];
+
+            for (const checkbox of allModelCheckboxes) {
+              const value = await checkbox.getAttribute("value");
+              if (value) {
+                availableModels.push(value);
+              }
+            }
+
+            // Find models that contain our search term
+            const matchingModels = availableModels.filter((model) =>
+              model.toLowerCase().includes(modelGroup.toLowerCase())
+            );
+
+            if (matchingModels.length > 0) {
+              console.log(
+                `Found ${
+                  matchingModels.length
+                } partial matches: ${matchingModels.join(", ")}`
+              );
+
+              // Sort by relevance: exact matches first, then shortest matches (likely base models)
+              const sortedMatches = matchingModels.sort((a, b) => {
+                const aExact = a.toLowerCase() === modelGroup.toLowerCase();
+                const bExact = b.toLowerCase() === modelGroup.toLowerCase();
+
+                if (aExact && !bExact) return -1;
+                if (!aExact && bExact) return 1;
+
+                // If both are partial matches, prefer shorter names (likely base models)
+                return a.length - b.length;
+              });
+
+              const bestMatch = sortedMatches[0];
+              console.log(`Selecting best match: ${bestMatch}`);
+
+              exactCheckbox = page
+                .locator(
+                  `input[type="checkbox"][name="ranges[]"][value="${bestMatch}"]`
+                )
+                .first();
+            }
+          }
+
+          // Select the found model checkbox
+          if (await exactCheckbox.isVisible()) {
+            await exactCheckbox.check();
             console.log(
               `✅ [Carwow] Model "${params.model}" filter applied successfully`
             );
@@ -147,6 +248,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
         }
 
         // Only click the Model button again if we used the search box (individual models)
+        // Series models don't need this step since we selected them directly
         if (!modelGroup.includes(",")) {
           await page.waitForTimeout(1000);
           await page.click(
@@ -154,13 +256,13 @@ export function carwowConfig(stagehand: any): SiteConfig {
           );
         }
 
-        //Select Age
+        // STEP 5: Apply Age filter (if specified)
         await page.waitForTimeout(1000);
 
         if (params.minAge || params.maxAge) {
           await page.click('button.chip:has-text("Age")');
 
-          // Set min age if within valid range
+          // Set minimum age if within valid range (0-20 years)
           if (params.minAge && params.minAge > 0 && params.minAge <= 20) {
             await page.selectOption(
               'select[data-selling--range-select-target="minRangeSelect"]',
@@ -168,7 +270,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
             );
           }
 
-          // Set max age if within valid range
+          // Set maximum age if within valid range (0-20 years)
           if (params.maxAge && params.maxAge > 0 && params.maxAge <= 20) {
             await page.selectOption(
               'select[data-selling--range-select-target="maxRangeSelect"]',
@@ -177,17 +279,19 @@ export function carwowConfig(stagehand: any): SiteConfig {
           }
         }
 
-        //Select Mileage
+        // STEP 6: Apply Mileage filter (if specified)
         if (params.minMileage || params.maxMileage) {
           await page.click(
             'button.chip:has(span.chip__label:has-text("Mileage"))'
           );
-          // Round down to nearest valid 10,000-mile step
+
+          // Helper function to round mileage to nearest 10,000-mile step
+          // Carwow only accepts specific mileage increments
           function roundToMileageStep(value: number) {
             return Math.floor(value / 10000) * 10000;
           }
 
-          // Wait for the min and max selects to be visible
+          // Wait for the min and max mileage selectors to be visible
           await page.waitForSelector(
             'select[name="mileage[]"][data-selling--range-select-target="minRangeSelect"]'
           );
@@ -195,7 +299,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
             'select[name="mileage[]"][data-selling--range-select-target="maxRangeSelect"]'
           );
 
-          // Select min mileage if defined
+          // Select minimum mileage if defined (10,000 - 200,000 miles)
           if (params.minMileage) {
             const min = roundToMileageStep(params.minMileage);
             if (min >= 10000 && min <= 200000) {
@@ -206,7 +310,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
             }
           }
 
-          // Select max mileage if defined
+          // Select maximum mileage if defined (10,000 - 200,000 miles)
           if (params.maxMileage) {
             const max = roundToMileageStep(params.maxMileage);
             if (max >= 10000 && max <= 200000) {
@@ -218,10 +322,12 @@ export function carwowConfig(stagehand: any): SiteConfig {
           }
         }
 
+        // Wait for filters to be applied and page to stabilize
         await page.waitForTimeout(2000);
         await page.waitForLoadState("networkidle");
 
-        // Scroll down gradually to trigger lazy loading
+        // STEP 7: Trigger lazy loading by scrolling down gradually
+        // This ensures all car listings are loaded before extraction
         await page.evaluate(async () => {
           await new Promise((resolve) => {
             let totalHeight = 0;
@@ -240,6 +346,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
           });
         });
 
+        // Final wait for all content to load
         await page.waitForLoadState("networkidle");
         await page.waitForLoadState("domcontentloaded");
 
@@ -257,6 +364,13 @@ export function carwowConfig(stagehand: any): SiteConfig {
         throw error;
       }
     },
+
+    /**
+     * EXTRACT CARS FUNCTION
+     * Extracts car data from the filtered search results page
+     * Parses individual car cards to extract details like price, title, location, etc.
+     * Returns an array of car objects with standardized data structure
+     */
     extractCars: async (page: any) => {
       stagehand.log({
         category: "debug",
@@ -264,6 +378,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
       });
 
       // Check if model filter was applied successfully
+      // If not, return empty array gracefully instead of failing
       if ((page as any)._carwowModelApplied === false) {
         stagehand.log({
           category: "warn",
@@ -273,18 +388,21 @@ export function carwowConfig(stagehand: any): SiteConfig {
         return [];
       }
 
+      // Find all car listing cards on the page
       const cards = await page.$$(
         'div.listings__list-item[data-listings-target="listing"]'
       );
       const carData = [];
 
+      // Iterate through each car card and extract relevant information
       for (const card of cards) {
         try {
-          // URL
+          // Extract car URL from the card link
           const url = await card.$eval("a.card-generic__body", (a: any) =>
             a.getAttribute("href")
           );
-          // Image
+
+          // Extract car image URL (with fallback to empty string if not found)
           let imageUrl = "";
           try {
             imageUrl = await card.$eval(
@@ -292,30 +410,35 @@ export function carwowConfig(stagehand: any): SiteConfig {
               (img: any) => img.src
             );
           } catch {
-            // imageUrl remains ""
+            // imageUrl remains "" if image extraction fails
           }
-          // Title
+
+          // Extract car title/name
           const title = await card.$eval(
             ".card-generic__title",
             (el: any) => el.textContent?.trim() || ""
           );
-          // Price
+
+          // Extract car price
           const price = await card.$eval(
             ".card-listing-details__price.as-h4",
             (el: any) => el.textContent?.trim() || ""
           );
-          // Reg
+
+          // Extract registration number (clean up multi-line text)
           const regRaw = await card.$eval(
             ".number-plate.number-plate--medium",
             (el: any) => el.textContent?.trim() || ""
           );
           const reg = regRaw.split("\n")[0].trim();
-          // Location
+
+          // Extract dealer location/delivery distance
           const location = await card.$eval(
             ".card-auction__car-delivery-distance",
             (el: any) => el.textContent?.trim() || ""
           );
 
+          // Create standardized car object and add to results array
           carData.push({
             url: url?.startsWith("/")
               ? `https://dealers.carwow.co.uk${url}`
@@ -329,6 +452,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
             timestamp: new Date().toISOString(),
           });
         } catch (err) {
+          // Log warning and continue with next card if extraction fails for one
           stagehand.log({
             category: "warn",
             message: "Skipping a card due to error: " + err,
@@ -336,6 +460,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
         }
       }
 
+      // Return the extracted car data array
       return carData;
     },
   };

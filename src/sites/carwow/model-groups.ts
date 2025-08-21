@@ -5,4 +5,7 @@ export const modelGroupMap: Record<string, Record<string, string>> = {
   CITROEN: {
     "DS3 / DS3c": "DS3",
   },
+  VOLKSWAGEN: {
+    "UP!": "UP",
+  },
 };
