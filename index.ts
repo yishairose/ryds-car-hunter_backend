@@ -330,7 +330,7 @@ export async function scrapeAllSites(
 
   const results = await runInBatches(
     siteConfigsArr.map((siteConfig) => () => processSite(siteConfig)),
-    2 // concurrency limit
+    Number(process.env.CONCURRENCY_LIMIT) || 2 // concurrency limit
   );
 
   console.log(`📊 [Backend] All sites processed, compiling results...`);
