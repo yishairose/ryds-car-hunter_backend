@@ -3,7 +3,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "tsx index.ts",
+    "start": "tsx api-server.ts",
+    "start:scraper": "tsx index.ts",
     "start:api": "tsx api-server.ts",
     "postinstall": "playwright install"
   },
