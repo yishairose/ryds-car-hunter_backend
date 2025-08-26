@@ -502,7 +502,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
       for (const card of cards) {
         try {
           // Extract car URL from the card link
-          const url = await card.$eval("a.card-generic__body", (a: any) =>
+          const url = await card.$eval("a.listing-card-component", (a: any) =>
             a.getAttribute("href")
           );
 
@@ -510,7 +510,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
           let imageUrl = "";
           try {
             imageUrl = await card.$eval(
-              '.media-slider__slide[data-number="1"] img.media-slider__image',
+              ".swiper-slide img",
               (img: any) => img.src
             );
           } catch {
@@ -519,26 +519,26 @@ export function carwowConfig(stagehand: any): SiteConfig {
 
           // Extract car title/name
           const title = await card.$eval(
-            ".card-generic__title",
+            ".listing-card-component__make_and_model",
             (el: any) => el.textContent?.trim() || ""
           );
 
           // Extract car price
           const price = await card.$eval(
-            ".card-listing-details__price.as-h4",
+            ".listing-card-price-component__price",
             (el: any) => el.textContent?.trim() || ""
           );
 
           // Extract registration number (clean up multi-line text)
           const regRaw = await card.$eval(
-            ".number-plate.number-plate--medium",
+            ".listing-card-license-plate-component__value",
             (el: any) => el.textContent?.trim() || ""
           );
           const reg = regRaw.split("\n")[0].trim();
 
           // Extract dealer location/delivery distance
           const location = await card.$eval(
-            ".card-auction__car-delivery-distance",
+            ".listing-card-distance-component__value",
             (el: any) => el.textContent?.trim() || ""
           );
 
