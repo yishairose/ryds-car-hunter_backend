@@ -83,22 +83,81 @@ export function carwowConfig(stagehand: any): SiteConfig {
         await page.waitForLoadState("networkidle");
         await page.waitForTimeout(2000);
 
-        // STEP 1: Select listing type (All vehicles)
-        await page.click(
-          'label[for="filters-modal-desktop-listing_type__all"]'
-        );
-        await page.waitForTimeout(1000);
+        // STEP 1: Select listing type (All vehicles) - with error handling
+        try {
+          const listingTypeLabel = await page.$(
+            'label[for="filters-modal-desktop-listing_type__all"]'
+          );
+          if (listingTypeLabel) {
+            await listingTypeLabel.click();
+            await page.waitForTimeout(1000);
+          } else {
+            stagehand.log({
+              category: "warn",
+              message: "Listing type filter not found, continuing without it",
+            });
+          }
+        } catch (error) {
+          stagehand.log({
+            category: "warn",
+            message: `Could not set listing type: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          });
+        }
 
-        // STEP 2: Open Make filter dropdown
-        await page.getByRole("button", { name: "Make" }).click();
-        await page.waitForTimeout(1000);
+        // STEP 2: Open Make filter dropdown - with error handling
+        try {
+          const makeButton = await page.getByRole("button", { name: "Make" });
+          if (await makeButton.isVisible()) {
+            await makeButton.click();
+            await page.waitForTimeout(1000);
+          } else {
+            stagehand.log({
+              category: "warn",
+              message:
+                "Make filter button not visible, continuing without make filter",
+            });
+            (page as any)._carwowModelApplied = false;
+            return;
+          }
+        } catch (error) {
+          stagehand.log({
+            category: "warn",
+            message: `Could not open make filter: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          });
+          (page as any)._carwowModelApplied = false;
+          return;
+        }
 
         // Search for the specified make in the filter
-        await page.fill(
-          'input[data-selling--filters-search-target="searchInput"][id="brand_slugs-search"]',
-          params.make
-        );
-        await page.waitForTimeout(1000);
+        try {
+          const searchInput = await page.$(
+            'input[data-selling--filters-search-target="searchInput"][id="brand_slugs-search"]'
+          );
+          if (searchInput) {
+            await searchInput.fill(params.make);
+            await page.waitForTimeout(1000);
+          } else {
+            stagehand.log({
+              category: "warn",
+              message: "Make search input not found",
+            });
+            (page as any)._carwowModelApplied = false;
+            return;
+          }
+        } catch (error) {
+          stagehand.log({
+            category: "warn",
+            message: `Could not search for make: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          });
+          (page as any)._carwowModelApplied = false;
+          return;
+        }
 
         // Handle special case for Land Rover -> land-rover (URL slug conversion)
         let makeForCheckbox = params.make.toLowerCase();
@@ -106,13 +165,46 @@ export function carwowConfig(stagehand: any): SiteConfig {
           makeForCheckbox = "land-rover";
         }
 
-        // Select the make checkbox
-        await page.check(
-          `input[type="checkbox"][name="brand_slugs[]"][value*="${makeForCheckbox}"]`
-        );
+        // Select the make checkbox - with error handling
+        try {
+          const makeCheckbox = await page.$(
+            `input[type="checkbox"][name="brand_slugs[]"][value*="${makeForCheckbox}"]`
+          );
+          if (makeCheckbox && (await makeCheckbox.isVisible())) {
+            await makeCheckbox.check();
+          } else {
+            stagehand.log({
+              category: "warn",
+              message: `Make checkbox for ${params.make} not found or not visible`,
+            });
+            (page as any)._carwowModelApplied = false;
+            return;
+          }
+        } catch (error) {
+          stagehand.log({
+            category: "warn",
+            message: `Could not select make: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          });
+          (page as any)._carwowModelApplied = false;
+          return;
+        }
 
         // Wait for Model filter to become available
-        await page.waitForSelector('button.chip:has(span:has-text("Model"))');
+        try {
+          await page.waitForSelector(
+            'button.chip:has(span:has-text("Model"))',
+            { timeout: 10000 }
+          );
+        } catch (error) {
+          stagehand.log({
+            category: "warn",
+            message: "Model filter button not found within timeout",
+          });
+          (page as any)._carwowModelApplied = false;
+          return;
+        }
 
         // STEP 3: Open Model filter dropdown
         await page.click(
@@ -350,18 +442,30 @@ export function carwowConfig(stagehand: any): SiteConfig {
         await page.waitForLoadState("networkidle");
         await page.waitForLoadState("domcontentloaded");
 
+        // Final success state
+        (page as any)._carwowModelApplied = true;
+
         stagehand.log({
           category: "debug",
           message: "Filters applied successfully for Carwow",
         });
       } catch (error) {
+        // Log the error but don't throw - set a flag instead
         stagehand.log({
           category: "error",
           message: `Error applying filters for Carwow: ${
             error instanceof Error ? error.message : String(error)
           }`,
         });
-        throw error;
+
+        // Set flag to indicate filtering failed, but don't crash
+        (page as any)._carwowModelApplied = false;
+
+        // Log that we're continuing without filters
+        stagehand.log({
+          category: "warn",
+          message: "Continuing Carwow processing without filters due to error",
+        });
       }
     },
 
