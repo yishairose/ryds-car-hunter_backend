@@ -133,30 +133,29 @@ export function carwowConfig(stagehand: any): SiteConfig {
         }
 
         // Search for the specified make in the filter
+        let makeSelected = false;
         try {
           const searchInput = await page.$(
             'input[data-selling--filters-search-target="searchInput"][id="brand_slugs-search"]'
           );
           if (searchInput) {
+            // Search input exists - use it
             await searchInput.fill(params.make);
             await page.waitForTimeout(1000);
+            console.log(`✅ Used search input for make: ${params.make}`);
           } else {
-            stagehand.log({
-              category: "warn",
-              message: "Make search input not found",
-            });
-            (page as any)._carwowModelApplied = false;
-            return;
+            // No search input - try direct selection
+            console.log(
+              `No search input found for make, trying direct selection...`
+            );
           }
         } catch (error) {
           stagehand.log({
             category: "warn",
-            message: `Could not search for make: ${
+            message: `Could not use search input for make: ${
               error instanceof Error ? error.message : String(error)
             }`,
           });
-          (page as any)._carwowModelApplied = false;
-          return;
         }
 
         // Handle special case for Land Rover -> land-rover (URL slug conversion)
@@ -172,13 +171,37 @@ export function carwowConfig(stagehand: any): SiteConfig {
           );
           if (makeCheckbox && (await makeCheckbox.isVisible())) {
             await makeCheckbox.check();
+            makeSelected = true;
+            console.log(`✅ Make selected: ${params.make}`);
           } else {
-            stagehand.log({
-              category: "warn",
-              message: `Make checkbox for ${params.make} not found or not visible`,
-            });
-            (page as any)._carwowModelApplied = false;
-            return;
+            // If direct selection failed, try to find by label text
+            console.log(
+              `Direct checkbox selection failed, trying to find by label...`
+            );
+            const allMakeCheckboxes = await page.$$(
+              'input[type="checkbox"][name="brand_slugs[]"]'
+            );
+
+            for (const checkbox of allMakeCheckboxes) {
+              try {
+                const label = await checkbox.evaluate((cb: any) => {
+                  const labelElement = cb.closest("label");
+                  return labelElement ? labelElement.textContent?.trim() : null;
+                });
+
+                if (
+                  label &&
+                  label.toLowerCase().includes(params.make.toLowerCase())
+                ) {
+                  await checkbox.check();
+                  makeSelected = true;
+                  console.log(`✅ Make selected by label: ${label}`);
+                  break;
+                }
+              } catch (e) {
+                // Continue to next checkbox
+              }
+            }
           }
         } catch (error) {
           stagehand.log({
@@ -186,6 +209,13 @@ export function carwowConfig(stagehand: any): SiteConfig {
             message: `Could not select make: ${
               error instanceof Error ? error.message : String(error)
             }`,
+          });
+        }
+
+        if (!makeSelected) {
+          stagehand.log({
+            category: "error",
+            message: `Could not select make: ${params.make}`,
           });
           (page as any)._carwowModelApplied = false;
           return;
@@ -222,12 +252,33 @@ export function carwowConfig(stagehand: any): SiteConfig {
           console.log(`Skipping search box for series model: ${params.model}`);
           console.log(`Will select models: ${modelGroup}`);
         } else {
-          // INDIVIDUAL MODEL HANDLING: Use search box to find specific model
-          await page.fill(
-            'input[data-selling--filters-search-target="searchInput"][id="ranges-search"]',
-            params.model
+          // INDIVIDUAL MODEL HANDLING: Try search box first, fallback to direct selection
+          console.log(`Looking for individual model: ${params.model}`);
+
+          // First, try to use search input if it exists
+          const modelSearchInput = await page.$(
+            'input[data-selling--filters-search-target="searchInput"][id="ranges-search"]'
           );
-          await page.waitForTimeout(1000);
+
+          if (modelSearchInput) {
+            // Search input exists - use it
+            try {
+              await modelSearchInput.fill(params.model);
+              await page.waitForTimeout(1000);
+              console.log(`✅ Model search input used for: ${params.model}`);
+            } catch (error) {
+              stagehand.log({
+                category: "warn",
+                message: `Model search input failed: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              });
+            }
+          } else {
+            console.log(
+              `No model search input found, will use direct selection`
+            );
+          }
         }
 
         // STEP 4: Handle model checkbox selection
