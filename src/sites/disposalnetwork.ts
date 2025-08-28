@@ -322,6 +322,7 @@ export function disposalnetworkConfig(stagehand: any): SiteConfig {
         price: vehicle.buyNowPrice,
         location: vehicle.vehicleLocationPostCode,
         registration: vehicle.regNo,
+        mileage: vehicle.mileage,
         source: "DisposalNetwork",
         timestamp: new Date().toISOString(),
       }));

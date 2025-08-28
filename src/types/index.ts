@@ -8,6 +8,7 @@ export type SearchParams = {
   color?: string;
   minAge?: number; // in years
   maxAge?: number; // in years
+  vatQualifying?: boolean; // VAT qualification filter
 };
 
 export type LoginCredentials = {

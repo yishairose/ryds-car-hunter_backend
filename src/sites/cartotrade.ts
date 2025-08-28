@@ -356,6 +356,14 @@ export function cartotradeConfig(stagehand: any): SiteConfig {
             )
             .catch(() => "");
 
+          // Extract mileage from the inline list (looks for text ending with "miles")
+          const mileage = await card
+            .$eval(
+              ".inline-list.no-space-below.strong.lowercase.pipe-seperated.pull-left li:has-text('miles')",
+              (el: any) => el.textContent?.trim() || ""
+            )
+            .catch(() => "");
+
           // Create standardized car object and add to results array
           carData.push({
             url: url?.startsWith("/")
@@ -366,6 +374,7 @@ export function cartotradeConfig(stagehand: any): SiteConfig {
             price: price,
             location,
             registration: reg,
+            mileage,
             source: "CarToTrade",
             timestamp: new Date().toISOString(),
           });

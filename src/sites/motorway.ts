@@ -255,6 +255,20 @@ export function motorwayConfig(stagehand: any): SiteConfig {
             }
           );
 
+          // Extract mileage from the details list (looks for text ending with "mi" but not "away")
+          const mileage = await card.$$eval(
+            ".VehicleCardView_detailsList__2q2lF li",
+            (els: any[]) => {
+              const mileageEl = els.find(
+                (e) =>
+                  e.textContent &&
+                  e.textContent.includes("mi") &&
+                  !e.textContent.includes("away")
+              );
+              return mileageEl ? mileageEl.textContent.trim() : "";
+            }
+          );
+
           // Create standardized car object and add to results array
           carData.push({
             url: url?.startsWith("/")
@@ -265,6 +279,7 @@ export function motorwayConfig(stagehand: any): SiteConfig {
             price: price,
             location,
             registration: reg,
+            mileage,
             source: "Motorway",
             timestamp: new Date().toISOString(),
           });

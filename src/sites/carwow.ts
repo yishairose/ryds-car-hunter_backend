@@ -593,6 +593,26 @@ export function carwowConfig(stagehand: any): SiteConfig {
             (el: any) => el.textContent?.trim() || ""
           );
 
+          // Extract mileage from the badges section (looks for numeric values that are likely mileage)
+          const mileage = await card.$$eval(
+            ".listing-card-component__badge",
+            (badges: any[]) => {
+              const mileageBadge = badges.find((badge) => {
+                const text = badge.textContent?.trim() || "";
+                // Look for numeric values that are likely mileage (4 digits or less, no text)
+                // Look for numeric values that are likely mileage
+                const numValue = parseInt(text.replace(/,/g, ""));
+                return (
+                  numValue >= 1000 &&
+                  numValue <= 200000 &&
+                  // Ensure it has a comma for values over 1,000 (Carwow format)
+                  (numValue < 1000 || text.includes(","))
+                );
+              });
+              return mileageBadge ? mileageBadge.textContent.trim() : "";
+            }
+          );
+
           // Create standardized car object and add to results array
           carData.push({
             url: url?.startsWith("/")
@@ -603,6 +623,7 @@ export function carwowConfig(stagehand: any): SiteConfig {
             price: price,
             location,
             registration: reg,
+            mileage,
             source: "CarWow",
             timestamp: new Date().toISOString(),
           });

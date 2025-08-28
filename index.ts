@@ -126,11 +126,11 @@ export async function scrapeAllSites(
   // Define site configurations with login functionality
   console.log("🏗️ [Backend] Setting up site configurations...");
   const siteConfigs: Record<string, SiteConfig> = {
-    // bca: bcaConfig(stagehand),
-    // CarToTrade: cartotradeConfig(stagehand),
-    // motorway: motorwayConfig(stagehand),
+    bca: bcaConfig(stagehand),
+    CarToTrade: cartotradeConfig(stagehand),
+    motorway: motorwayConfig(stagehand),
     carwow: carwowConfig(stagehand),
-    // disposalnetwork: disposalnetworkConfig(stagehand),
+    disposalnetwork: disposalnetworkConfig(stagehand),
   } as const;
 
   console.log(

@@ -128,6 +128,9 @@ export function bcaConfig(stagehand: any): SiteConfig {
           }
           return undefined;
         })(),
+
+        // VAT qualification filter
+        params.vatQualifying ? "VATType:VAT Qualifying" : undefined,
       ].filter(Boolean); // Remove undefined values
 
       // Construct the final search URL with BCA's query format
@@ -229,8 +232,8 @@ export function bcaConfig(stagehand: any): SiteConfig {
 
       // Get current URL and construct search URL for navigation
       const currentUrl = page.url();
-      const searchUrl =
-        "https://www.bca.co.uk/search?" + new URL(currentUrl).search;
+      // Preserve the full URL including bq parameter for VAT filtering
+      const searchUrl = currentUrl;
 
       await page.waitForTimeout(2000);
 
@@ -288,6 +291,7 @@ export function bcaConfig(stagehand: any): SiteConfig {
             // Build product page URL using BCA's URL format
             // BCA uses registration number to construct URLs: /lot/{first4}%20{last3}
             const vrm = vehicle.vrm || "";
+            const mileage = vehicle.mileage || "";
             const regFirst4 = vrm.replace(/\s/g, "").substring(0, 4);
             const regLast3 = vrm.replace(/\s/g, "").slice(-3);
             const productPageUrl = `https://www.bca.co.uk/lot/${regFirst4}%20${regLast3}`;
@@ -302,6 +306,7 @@ export function bcaConfig(stagehand: any): SiteConfig {
               registration: vrm,
               source: "BCA",
               timestamp: new Date().toISOString(),
+              mileage: mileage,
             };
           });
 
